@@ -1,0 +1,16 @@
+import fs from 'node:fs';import assert from 'node:assert/strict';
+const source=fs.readFileSync('worker/index.js','utf8'),worker=(await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'))).default;
+const files=new Map(),BUCKET={async put(k,b){files.set(k,b)},async get(k){return files.has(k)?{body:files.get(k)}:null},async head(k){return files.has(k)?{}:null}};
+const origin='https://example.test',bytes=fs.readFileSync('outputs/insectpad-mantis.png');const request=(b,headers={})=>new Request(origin+'/api/pfp',{method:'POST',headers:{Origin:origin,'Content-Type':'image/png',...headers},body:b});
+assert.equal((await worker.fetch(request(bytes),{})).status,503);
+assert.equal((await worker.fetch(request(bytes,{Origin:'https://evil.test'}),{BUCKET})).status,403);
+assert.equal((await worker.fetch(request(bytes,{'Content-Type':'image/jpeg'}),{BUCKET})).status,415);
+assert.equal((await worker.fetch(request(Buffer.alloc(30)),{BUCKET})).status,400);
+const corrupt=Buffer.from(bytes);corrupt[corrupt.length-1]^=1;assert.equal((await worker.fetch(request(corrupt),{BUCKET})).status,400);
+const uploaded=await(await worker.fetch(request(bytes),{BUCKET})).json();assert.match(uploaded.imageId,/^[a-f0-9]{64}$/);const img=await worker.fetch(new Request(uploaded.url),{BUCKET});assert.equal(img.status,200);assert.equal(img.headers.get('Content-Type'),'image/png');assert.deepEqual(Buffer.from(await img.arrayBuffer()),bytes);
+assert.equal((await(await worker.fetch(request(bytes),{BUCKET})).json()).imageId,uploaded.imageId);
+const profile={name:'Artist Bug',symbol:'ARTBUG',species:'mantis',job:'artist',mood:'green',dream:'big leaf',balance:'3 crumbs',imageId:uploaded.imageId,devbuy:'0.001',user:'So11111111111111111111111111111111111111112'};
+const create=p=>new Request(origin+'/api/create',{method:'POST',headers:{Origin:origin},body:JSON.stringify(p)});
+assert.equal((await worker.fetch(create({...profile,imageId:'a'.repeat(64)}),{BUCKET})).status,400);
+const realFetch=globalThis.fetch;globalThis.fetch=async()=>new Response(JSON.stringify({transaction:'fixture',mintPublicKey:profile.user}));const built=await(await worker.fetch(create(profile),{BUCKET})).json();const metadata=await(await worker.fetch(new Request(built.metadataUri),{BUCKET})).json();assert.equal(metadata.image,uploaded.url);globalThis.fetch=realFetch;
+console.log('Passed: PNG validation, origin checks, durable upload/read, immutable IDs, missing-PFP prevention, custom PFP in launch metadata.');
