@@ -1,0 +1,11 @@
+{
+  "name": "insectpad",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/preview.mjs",
+    "validate": "node scripts/validate-artifact.mjs",
+    "test": "node scripts/build-worker.mjs && node tests/test.mjs && node tests/test-pfp.mjs && node tests/launch-recovery.mjs"
+  }
+}

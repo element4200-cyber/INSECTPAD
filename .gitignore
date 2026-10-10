@@ -1,0 +1,6 @@
+dist/
+work/
+outputs/
+node_modules/
+.env
+.env.local
